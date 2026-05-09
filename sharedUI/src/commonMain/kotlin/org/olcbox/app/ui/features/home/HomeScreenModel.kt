@@ -247,7 +247,7 @@ class HomeScreenViewModel(
         if (rawText.isBlank()) return
         viewModelScope.launch {
             try {
-                withContext(Dispatchers.IO) {
+                withContext(Dispatchers.Default) {
                     locationsRepository.importText(rawText)
                 }
                 loadCurrentConfig()

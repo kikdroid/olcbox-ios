@@ -48,6 +48,7 @@ The author does not support or encourage such use.
 | Android | TUN, proxy | `VpnService`, `hev-socks5-tunnel`, local `olcrtc` SOCKS5 |
 | macOS | Proxy | local `olcrtc` SOCKS5 with OS PAC settings |
 | Windows | Proxy | local `olcrtc` SOCKS5 with OS PAC settings |
+| iOS | Proxy (stub) | Compose Multiplatform UI, VPN runtime TBD |
 | Linux | TUN | local `olcrtc` SOCKS5, `hev-socks5-tunnel`, policy routes |
 
 ## Requirements
@@ -57,6 +58,7 @@ The author does not support or encourage such use.
 | JVM | JDK 17+ |
 | Android | Android Studio, Android SDK, Android NDK |
 | Desktop native assets | Go and local `olcrtc` fork |
+| iOS | Xcode 15+, macOS host |
 | Linux TUN | `iproute2`, `/dev/net/tun`, root/Polkit/sudo privileges |
 
 Default local `olcrtc` path:
@@ -88,6 +90,8 @@ $env:OLCRTC_REPO="C:\path\to\olcrtc"
 | Package current host OS | `./gradlew :desktopApp:packageReleaseDistributionForCurrentOS` |
 | Main checks | `./gradlew :sharedUI:jvmTest :desktopApp:compileKotlin :androidApp:assembleDebug` |
 | JVM tests | `./gradlew :sharedUI:jvmTest` |
+| Build iOS SharedUI framework | `./gradlew :sharedUI:linkDebugFrameworkIosArm64` |
+| Build iOS SharedUI simulator framework | `./gradlew :sharedUI:linkDebugFrameworkIosSimulatorArm64` |
 
 ## Build Outputs
 
@@ -99,6 +103,7 @@ $env:OLCRTC_REPO="C:\path\to\olcrtc"
 | Windows EXE | `.\gradlew.bat :desktopApp:packageReleaseExe` | `desktopApp\build\compose\binaries\main-release\exe\Olcbox-1.0.0.exe` |
 | Windows MSI | `.\gradlew.bat :desktopApp:packageReleaseMsi` | `desktopApp\build\compose\binaries\main-release\msi\Olcbox-1.0.0.msi` |
 | Linux AppImage | `./gradlew :desktopApp:packageReleaseLinuxAppImage` | `desktopApp/build/compose/binaries/main-release/appimage/Olcbox-1.0.0-amd64.AppImage` |
+| iOS | Open `iosApp/iosApp.xcodeproj` in Xcode, build & run | `Olcbox.app` (via Xcode) |
 
 ## Native Assets
 
@@ -116,6 +121,8 @@ $env:OLCRTC_REPO="C:\path\to\olcrtc"
 - Android native ABIs: `arm64-v8a`, `x86_64`.
 - Android release builds require `keystore.properties` in the repository root.
 - macOS DMG output is not notarized unless signing/notarization is configured separately.
+- iOS app is built via Xcode; the SharedUI framework is compiled by a Gradle build phase inside the Xcode project.
+- iOS VPN runtime is a stub — UI is fully functional, tunnel start/stop is not yet implemented.
 - Windows installers must be built on Windows with `jpackage` and WiX available.
 - Linux TUN interface: `olcbox0`.
 - Linux stop removes policy routes and reverts `systemd-resolved` settings when `resolvectl` is available.
