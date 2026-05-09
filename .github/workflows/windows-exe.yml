@@ -274,6 +274,69 @@ jobs:
           name: Olcbox-android-apk
           path: olcbox/dist/Olcbox-android-release.apk
 
+  build-ios:
+    runs-on: macos-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout olcbox
+        uses: actions/checkout@v4
+        with:
+          path: olcbox
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: |
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build iOS SharedUI framework (simulator)
+        working-directory: olcbox
+        run: |
+          ./gradlew :sharedUI:linkReleaseFrameworkIosSimulatorArm64 --stacktrace
+
+      - name: Build iOS app via xcodebuild
+        working-directory: olcbox/iosApp
+        run: |
+          xcodebuild build \
+            -project iosApp.xcodeproj \
+            -scheme iosApp \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=NO | tail -20
+
+      - name: Prepare asset
+        working-directory: olcbox
+        run: |
+          mkdir -p dist
+          APP_PATH=$(find iosApp/build -name "Olcbox.app" -type d | head -1)
+          if [ -n "$APP_PATH" ]; then
+            cd "$(dirname "$APP_PATH")"
+            zip -r "${{ github.workspace }}/olcbox/dist/Olcbox-ios-simulator.zip" "Olcbox.app"
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Olcbox-ios-simulator
+          path: olcbox/dist/Olcbox-ios-simulator.zip
+          if-no-files-found: warn
+
   publish-nightly:
     runs-on: ubuntu-latest
     permissions:
@@ -283,6 +346,7 @@ jobs:
       - build-macos
       - build-linux
       - build-android
+      - build-ios
 
     steps:
       - name: Checkout olcbox
