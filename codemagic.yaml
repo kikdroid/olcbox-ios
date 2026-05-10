@@ -15,18 +15,21 @@ workflows:
       - name: Build Kotlin Framework
         script: |
           set -e
-          # Эти переменные критически важны для задачи syncComposeResourcesForIos
           export CONFIGURATION=Release
           export SDK_NAME=iphoneos
           export ARCHS=arm64
           export PLATFORM_NAME=iphoneos
           export IPHONEOS_DEPLOYMENT_TARGET=16.0
           
-          echo "Сборка фреймворка с параметрами Xcode..."
-          ./gradlew :sharedUI:embedAndSignAppleFrameworkForXcode \
-            -Pkotlin.native.cocoapods.configuration=$CONFIGURATION \
-            -Pkotlin.native.cocoapods.platform=$PLATFORM_NAME \
-            -Pkotlin.native.cocoapods.archs=$ARCHS
+          # --- НОВЫЙ БЛОК ---
+          # Эмулируем пути Xcode, чтобы Compose Resources знал, куда класть файлы
+          export TARGET_BUILD_DIR="$(pwd)/build/xcode_products"
+          export BUILT_PRODUCTS_DIR="$(pwd)/build/xcode_products"
+          export CONTENTS_FOLDER_PATH="SharedUI.framework"
+          export FRAMEWORKS_FOLDER_PATH="Frameworks"
+          
+          echo "Сборка фреймворка с полным окружением Xcode..."
+          ./gradlew :sharedUI:embedAndSignAppleFrameworkForXcode
           
       - name: Build Xcode Project
         script: |
