@@ -4,12 +4,31 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
     scripts:
-      - name: Build IPA
+      - name: Build Unsigned IPA
         script: |
-          # Автоматическая сборка без подписи
-          xcode-project build-ipa \
-            --workspace $(find . -name "*.xcworkspace" | head -n 1) \
-            --scheme "iosApp" \
-            --no-codesign
+          # 1. Переходим в папку, где лежит проект
+          cd iosApp
+          
+          # 2. Проверяем, на месте ли файл (если нет — билд упадет здесь)
+          ls -la iosApp.xcodeproj
+
+          # 3. Запускаем сборку (должна идти 3-7 минут)
+          xcodebuild build \
+            -project "iosApp.xcodeproj" \
+            -scheme "iosApp" \
+            -configuration Release \
+            -sdk iphoneos \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            -derivedDataPath ./build-data
+
+          # 4. Собираем структуру IPA
+          mkdir -p Payload
+          # Копируем скомпилированное приложение
+          cp -R ./build-data/Build/Products/Release-iphoneos/iosApp.app Payload/
+          
+          # 5. Упаковываем
+          zip -qr ../olcbox_client.ipa Payload
     artifacts:
-      - build/ios/ipa/*.ipa
+      - "*.ipa"
