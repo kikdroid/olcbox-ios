@@ -3,15 +3,11 @@ workflows:
     name: iOS Build
     max_build_duration: 60
     instance_type: mac_mini_m2
-    working_directory: .
-   scripts:
+    scripts:
       - name: Build ipa
         script: |
-          # Ищем файл проекта автоматически
           PROJECT_PATH=$(find . -name "*.xcodeproj" | head -n 1)
-          echo "Я нашел проект здесь: $PROJECT_PATH"
-          
-          # Собираем приложение, используя найденный путь
+          echo "Проект найден по пути: $PROJECT_PATH"
           xcode-project build-ipa \
             --project "$PROJECT_PATH" \
             --scheme "OlcRTC" \
