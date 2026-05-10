@@ -10,11 +10,13 @@ pluginManagement {
 
 dependencyResolutionManagement {
     repositories {
+        // Убираем фильтры и лишние пути, так как мы больше не ищем локальные AAR
         google()
         mavenCentral()
     }
 }
 
-// Оставляем только те модули, которые не зависят от Android-библиотек Go
+// ВАЖНО: Мы полностью исключаем ":androidApp", чтобы Gradle 
+// даже не пытался проверять его зависимости и наличие Go-кода.
 include(":sharedUI")
 include(":desktopApp")
