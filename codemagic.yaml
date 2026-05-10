@@ -10,37 +10,45 @@ workflows:
       - name: Clean Project
         script: |
           chmod +x gradlew
+          # Полная очистка, включая удаление папки build вручную
+          rm -rf build
           ./gradlew clean
           
       - name: Build Kotlin Framework
         script: |
           set -e
-          # Устанавливаем окружение Xcode
+          # Окружение Xcode
           export CONFIGURATION=Release
           export SDK_NAME=iphoneos
           export ARCHS=arm64
           export PLATFORM_NAME=iphoneos
           export IPHONEOS_DEPLOYMENT_TARGET=16.0
           
-          # Эмулируем пути для Compose Resources
-          export TARGET_BUILD_DIR="$(pwd)/build/xcode_products"
-          export BUILT_PRODUCTS_DIR="$(pwd)/build/xcode_products"
+          # Определяем пути
+          export XCODE_OUT="$(pwd)/build/xcode_products"
           export CONTENTS_FOLDER_PATH="SharedUI.framework"
-          export UNLOCALIZED_RESOURCES_FOLDER_PATH="SharedUI.framework"
+          
+          # Принудительно создаем дерево папок и даем права
+          echo "Принудительная подготовка директорий..."
+          mkdir -p "$XCODE_OUT/$CONTENTS_FOLDER_PATH"
+          chmod -R 777 "$(pwd)/build"
+
+          # Экспортируем переменные для Gradle
+          export TARGET_BUILD_DIR="$XCODE_OUT"
+          export BUILT_PRODUCTS_DIR="$XCODE_OUT"
+          export UNLOCALIZED_RESOURCES_FOLDER_PATH="$CONTENTS_FOLDER_PATH"
           export FRAMEWORKS_FOLDER_PATH="Frameworks"
           
-          # СОЗДАЕМ ДИРЕКТОРИИ ВРУЧНУЮ (Решение проблемы с parent directory)
-          echo "Подготовка структуры папок..."
-          mkdir -p "$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH"
-          
-          echo "Сборка фреймворка с полным окружением Xcode..."
-          # --no-daemon гарантирует, что Gradle подхватит текущие переменные окружения
-          ./gradlew :sharedUI:embedAndSignAppleFrameworkForXcode --no-daemon
+          echo "Запуск сборки фреймворка..."
+          # Добавляем прямой параметр для плагина Compose через -P
+          ./gradlew :sharedUI:embedAndSignAppleFrameworkForXcode \
+            --no-daemon \
+            -Pcompose.ios.resources.destDir="$XCODE_OUT/$CONTENTS_FOLDER_PATH"
           
       - name: Build Xcode Project
         script: |
           set -e
-          # Поиск проекта iosApp
+          # Находим проект
           PROJ_PATH=$(find . -name "iosApp.xcodeproj" -type d | head -n 1)
           PROJ_DIR=$(dirname "$PROJ_PATH")
           cd "$PROJ_DIR"
