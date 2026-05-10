@@ -2,14 +2,7 @@ rootProject.name = "Multiplatform-App"
 
 pluginManagement {
     repositories {
-        google {
-            content {
-                includeGroupByRegex("com\\.android.*")
-                includeGroupByRegex("com\\.google.*")
-                includeGroupByRegex("androidx.*")
-                includeGroupByRegex("android.*")
-            }
-        }
+        google()
         gradlePluginPortal()
         mavenCentral()
     }
@@ -17,21 +10,11 @@ pluginManagement {
 
 dependencyResolutionManagement {
     repositories {
-        google {
-            content {
-                includeGroupByRegex("com\\.android.*")
-                includeGroupByRegex("com\\.google.*")
-                includeGroupByRegex("androidx.*")
-                includeGroupByRegex("android.*")
-            }
-        }
+        google()
         mavenCentral()
-        flatDir {
-            dirs("androidApp/jniLibs/arm64-v8a")
-        }
     }
 }
-include(":sharedUI")
-include(":androidApp")
-include(":desktopApp")
 
+// Оставляем только те модули, которые не зависят от Android-библиотек Go
+include(":sharedUI")
+include(":desktopApp")
