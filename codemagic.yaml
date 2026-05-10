@@ -4,13 +4,27 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
     scripts:
-      - name: Build ipa
+      - name: Build Unsigned IPA
         script: |
+          # 1. Находим проект и его схему автоматически
           PROJECT_PATH=$(find . -name "*.xcodeproj" | head -n 1)
-          echo "Проект найден по пути: $PROJECT_PATH"
-          xcode-project build-ipa \
-            --project "$PROJECT_PATH" \
-            --scheme "OlcRTC" \
-            --no-codesign
+          SCHEME_NAME=$(xcodebuild -list -project "$PROJECT_PATH" | awk '/Schemes:/{f=1;next}f{print;f=0}' | xargs)
+          echo "Собираем: $PROJECT_PATH со схемой: $SCHEME_NAME"
+
+          # 2. Собираем проект без подписи
+          xcodebuild -project "$PROJECT_PATH" \
+            -scheme "$SCHEME_NAME" \
+            -configuration Release \
+            -sdk iphoneos \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            clean build
+
+          # 3. Упаковываем результат в .ipa
+          mkdir -p build/ios/ipa/Payload
+          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "*.app" | head -n 1)
+          cp -R "$APP_PATH" build/ios/ipa/Payload/
+          cd build/ios/ipa && zip -qr unsigned.ipa Payload
     artifacts:
-      - build/ios/ipa/*.ipa
+      - build/ios/ipa/unsigned.ipa
