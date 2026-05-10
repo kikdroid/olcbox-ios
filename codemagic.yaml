@@ -11,31 +11,29 @@ workflows:
         script: |
           set -e
           chmod +x gradlew
-          echo "Собираем только iOS Framework (Release) и отключаем Android-задачи..."
+          echo "Сборка Kotlin Framework..."
           
-          # Мы принудительно исключаем (-x) все задачи, которые лезут в Android 
-          # и требуют отсутствующую папку 'olcrtc-original'
-          ./gradlew :sharedUI:assembleSharedUIReleaseFrameworkIosArm64 \
+          # Эмулируем окружение Xcode для универсальной задачи
+          export CONFIGURATION=Release
+          export SDK_NAME=iphoneos
+          export ARCHS=arm64
+          
+          # Используем задачу, которая гарантированно существует для iOS-таргетов
+          ./gradlew :sharedUI:embedAndSignAppleFrameworkForXcode \
             -x :sharedUI:compileAndroidMain \
             -x :sharedUI:buildOlcrtcAndroidAar \
             -x :androidApp:compileReleaseKotlin \
-            -x :androidApp:mergeReleaseResources
+            --stacktrace
           
       - name: Build Unsigned IPA
         script: |
           set -e
-          
-          # Автоматически находим, где лежит iosApp.xcodeproj
+          # Поиск проекта
           PROJ_PATH=$(find . -name "iosApp.xcodeproj" -type d | head -n 1)
-          if [ -z "$PROJ_PATH" ]; then
-            echo "ОШИБКА: Проект iosApp.xcodeproj не найден!"
-            exit 1
-          fi
-          
           PROJ_DIR=$(dirname "$PROJ_PATH")
           cd "$PROJ_DIR"
-          echo "Собираем Xcode проект в папке: $(pwd)"
 
+          echo "Xcode Build..."
           xcodebuild build \
             -project "iosApp.xcodeproj" \
             -scheme "iosApp" \
@@ -46,19 +44,10 @@ workflows:
             CODE_SIGN_IDENTITY="" \
             -derivedDataPath ./build-data
 
-          # Создаем структуру для IPA
-          echo "Упаковываем результат..."
+          echo "Packaging IPA..."
           mkdir -p Payload
-          
-          # Ищем скомпилированное приложение .app внутри build-data
           APP_PATH=$(find ./build-data -name "*.app" -type d | head -n 1)
-          if [ -z "$APP_PATH" ]; then
-            echo "ОШИБКА: Файл .app не найден. Сборка Xcode провалилась."
-            exit 1
-          fi
-          
           cp -R "$APP_PATH" Payload/
           zip -qr ../olcbox_client.ipa Payload
-          echo "Билд успешно завершен!"
     artifacts:
       - "*.ipa"
