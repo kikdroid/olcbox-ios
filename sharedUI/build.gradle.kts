@@ -10,39 +10,51 @@ plugins {
     alias(libs.plugins.metro)
 }
 
-val olcrtcRepoPath = providers.environmentVariable("OLCRTC_REPO")
-    .orElse(rootProject.layout.projectDirectory.asFile.parentFile.resolve("olcrtc-original").absolutePath)
+// Пытаемся найти папку с Go-кодом. Сначала в переменной окружения, 
+// потом в корне проекта, потом рядом с проектом.
+val olcrtcRepoPath = providers.environmentVariable("OLCRTC_REPO").orElse(
+    listOf(
+        layout.projectDirectory.dir("../olcrtc-original").asFile.absolutePath,
+        layout.projectDirectory.dir("olcrtc-original").asFile.absolutePath,
+        rootProject.layout.projectDirectory.dir("../olcrtc-original").asFile.absolutePath
+    ).find { file(it).exists() } ?: "NOT_FOUND"
+)
+
 val olcrtcRepoDir = file(olcrtcRepoPath.get())
+val hasOlcrtc = olcrtcRepoDir.exists() && olcrtcRepoDir.isDirectory
+
 val olcrtcAndroidAar = layout.buildDirectory.file("generated/olcrtc/olcrtc.aar")
 val olcrtcAndroidAarFile = olcrtcAndroidAar.get().asFile
 
-olcrtcAndroidAarFile.parentFile.mkdirs()
-
+// Регистрируем задачу только если папка реально существует
 val buildOlcrtcAndroidAar by tasks.registering(Exec::class) {
     group = "build"
     description = "Builds olcrtc Android AAR from OLCRTC_REPO using gomobile."
+    
+    // Если папки нет, задача просто ничего не будет делать
+    onlyIf { hasOlcrtc }
 
-    inputs.dir(olcrtcRepoDir.resolve("mobile"))
-    inputs.dir(olcrtcRepoDir.resolve("internal"))
-    inputs.files(olcrtcRepoDir.resolve("go.mod"), olcrtcRepoDir.resolve("go.sum"))
-    outputs.file(olcrtcAndroidAar)
+    if (hasOlcrtc) {
+        inputs.dir(olcrtcRepoDir.resolve("mobile"))
+        inputs.dir(olcrtcRepoDir.resolve("internal"))
+        inputs.files(olcrtcRepoDir.resolve("go.mod"), olcrtcRepoDir.resolve("go.sum"))
+        outputs.file(olcrtcAndroidAar)
 
-    workingDir = olcrtcRepoDir
-    commandLine(
-        "gomobile",
-        "bind",
-        "-target=android",
-        "-androidapi",
-        "21",
-        "-ldflags",
-        "-s -w -checklinkname=0",
-        "-o",
-        olcrtcAndroidAarFile.absolutePath,
-        "./mobile"
-    )
+        workingDir = olcrtcRepoDir
+        commandLine(
+            "gomobile", "bind", "-target=android", "-androidapi", "21",
+            "-ldflags", "-s -w -checklinkname=0", "-o",
+            olcrtcAndroidAarFile.absolutePath, "./mobile"
+        )
+    }
 }
 
-val olcrtcAndroidAarDependency = files(olcrtcAndroidAarFile).builtBy(buildOlcrtcAndroidAar)
+// Делаем зависимость "безопасной"
+val olcrtcAndroidAarDependency = if (hasOlcrtc) {
+    files(olcrtcAndroidAarFile).builtBy(buildOlcrtcAndroidAar)
+} else {
+    files() // Пустая зависимость, если папки нет
+}
 
 kotlin {
     android {
