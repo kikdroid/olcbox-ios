@@ -8,7 +8,7 @@ workflows:
       - name: Build ipa
         script: |
           xcode-project build-ipa \
-            --project "OlcRTC.xcodeproj" \
+            --project "olcbox-ios/OlcRTC.xcodeproj" \
             --scheme "OlcRTC" \
             --no-codesign
     artifacts:
