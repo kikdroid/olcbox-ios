@@ -10,11 +10,10 @@ plugins {
     alias(libs.plugins.metro)
 }
 
-// Проверяем, запущено ли это на CI (Codemagic)
+// Проверка среды
 val isCi = System.getenv("CI") != null
 
-// Пытаемся найти папку с Go-кодом. Сначала в переменной окружения, 
-// потом в корне проекта, потом рядом с проектом.
+// Поиск локальной Go-библиотеки (для Android)
 val olcrtcRepoPath = providers.environmentVariable("OLCRTC_REPO").orElse(
     listOf(
         layout.projectDirectory.dir("../olcrtc-original").asFile.absolutePath,
@@ -29,52 +28,29 @@ val hasOlcrtc = olcrtcRepoDir.exists() && olcrtcRepoDir.isDirectory
 val olcrtcAndroidAar = layout.buildDirectory.file("generated/olcrtc/olcrtc.aar")
 val olcrtcAndroidAarFile = olcrtcAndroidAar.get().asFile
 
-// Регистрируем задачу только если папка реально существует
+// Задача сборки AAR (только если есть исходники)
 val buildOlcrtcAndroidAar by tasks.registering(Exec::class) {
     group = "build"
-    description = "Builds olcrtc Android AAR from OLCRTC_REPO using gomobile."
-    
-    // Если папки нет, задача просто ничего не будет делать
     onlyIf { hasOlcrtc }
-
     if (hasOlcrtc) {
         inputs.dir(olcrtcRepoDir.resolve("mobile"))
-        inputs.dir(olcrtcRepoDir.resolve("internal"))
-        inputs.files(olcrtcRepoDir.resolve("go.mod"), olcrtcRepoDir.resolve("go.sum"))
         outputs.file(olcrtcAndroidAar)
-
         workingDir = olcrtcRepoDir
-        commandLine(
-            "gomobile", "bind", "-target=android", "-androidapi", "21",
-            "-ldflags", "-s -w -checklinkname=0", "-o",
-            olcrtcAndroidAarFile.absolutePath, "./mobile"
-        )
+        commandLine("gomobile", "bind", "-target=android", "-androidapi", "21", "-o", olcrtcAndroidAarFile.absolutePath, "./mobile")
     }
 }
 
-// Делаем зависимость "безопасной" для CI
-val olcrtcAndroidAarDependency = if (hasOlcrtc) {
-    files(olcrtcAndroidAarFile).builtBy(buildOlcrtcAndroidAar)
-} else {
-    files() // Пустая зависимость, если папки нет (на CI для iOS это нормально)
-}
+val olcrtcAndroidAarDependency = if (hasOlcrtc) files(olcrtcAndroidAarFile).builtBy(buildOlcrtcAndroidAar) else files()
 
 kotlin {
     android {
         namespace = "org.olcbox.app.sharedui"
         compileSdk = 36
         minSdk = 23
-
-        compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_17)
-        }
+        compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
     }
 
-    jvm {
-        compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_17)
-        }
-    }
+    jvm { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
 
     macosX64()
     macosArm64()
@@ -87,76 +63,27 @@ kotlin {
             api(libs.compose.ui)
             api(libs.compose.foundation)
             api(libs.compose.resources)
-            api(libs.compose.ui.tooling.preview)
             api(libs.compose.material3)
-
-            implementation(compose.materialIconsExtended)
             implementation(libs.kermit)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.ktor.client.core)
-            implementation(libs.ktor.client.content.negotiation)
-            implementation(libs.ktor.client.serialization)
-            implementation(libs.ktor.serialization.json)
-            implementation(libs.ktor.client.logging)
-            implementation(libs.androidx.lifecycle.viewmodel)
-            implementation(libs.androidx.lifecycle.runtime)
             implementation(libs.kotlinx.serialization.json)
-            implementation(libs.multiplatformSettings)
-            implementation(libs.kstore)
-            implementation(libs.materialKolor)
-            implementation(libs.androidx.datastore.preferences)
-        }
-
-        commonTest.dependencies {
-            implementation(kotlin("test"))
-            implementation(libs.compose.ui.test)
-            implementation(libs.kotlinx.coroutines.test)
         }
 
         androidMain.dependencies {
             implementation(libs.androidx.activityCompose)
-            implementation(libs.androidx.camera.camera2)
-            implementation(libs.androidx.camera.core)
-            implementation(libs.androidx.camera.lifecycle)
-            implementation(libs.androidx.camera.view)
-            implementation(libs.kotlinx.coroutines.android)
             implementation(libs.ktor.client.okhttp)
-            implementation(libs.kstore.file)
-            implementation(libs.zxing.core)
-            
-            // Зависимость добавится только если библиотека найдена
-            if (hasOlcrtc) {
-                implementation(olcrtcAndroidAarDependency)
-            }
+            if (hasOlcrtc) { implementation(olcrtcAndroidAarDependency) }
         }
 
-        jvmMain.dependencies {
-            implementation(compose.desktop.currentOs)
-            implementation(libs.kotlinx.coroutines.swing)
-            implementation(libs.ktor.client.okhttp)
-            implementation(libs.kstore.file)
-        }
-
-        iosMain.dependencies {
-            implementation(libs.ktor.client.darwin)
-            implementation(libs.kstore.file)
-        }
-
-        macosMain.dependencies {
-            implementation(libs.ktor.client.darwin)
-            implementation(libs.kstore.file)
-        }
+        iosMain.dependencies { implementation(libs.ktor.client.darwin) }
+        macosMain.dependencies { implementation(libs.ktor.client.darwin) }
     }
 
-    targets
-        .withType<KotlinNativeTarget>()
-        .matching { it.konanTarget.family.isAppleFamily }
-        .configureEach {
-            binaries {
-                framework {
-                    baseName = "SharedUI"
-                    isStatic = true
-                }
-            }
+    targets.withType<KotlinNativeTarget>().matching { it.konanTarget.family.isAppleFamily }.configureEach {
+        binaries.framework {
+            baseName = "SharedUI"
+            isStatic = true
         }
+    }
 }
