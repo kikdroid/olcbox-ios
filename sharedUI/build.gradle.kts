@@ -5,52 +5,18 @@ plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.compose.multiplatform)
-    alias(libs.plugins.android.kmp.library)
+    // Плагин android-library удален, так как мы собираем только iOS
     alias(libs.plugins.kotlinx.serialization)
     alias(libs.plugins.metro)
 }
 
-// Проверка среды
-val isCi = System.getenv("CI") != null
-
-// Поиск локальной Go-библиотеки (для Android)
-val olcrtcRepoPath = providers.environmentVariable("OLCRTC_REPO").orElse(
-    listOf(
-        layout.projectDirectory.dir("../olcrtc-original").asFile.absolutePath,
-        layout.projectDirectory.dir("olcrtc-original").asFile.absolutePath,
-        rootProject.layout.projectDirectory.dir("../olcrtc-original").asFile.absolutePath
-    ).find { file(it).exists() } ?: "NOT_FOUND"
-)
-
-val olcrtcRepoDir = file(olcrtcRepoPath.get())
-val hasOlcrtc = olcrtcRepoDir.exists() && olcrtcRepoDir.isDirectory
-
-val olcrtcAndroidAar = layout.buildDirectory.file("generated/olcrtc/olcrtc.aar")
-val olcrtcAndroidAarFile = olcrtcAndroidAar.get().asFile
-
-// Задача сборки AAR (только если есть исходники)
-val buildOlcrtcAndroidAar by tasks.registering(Exec::class) {
-    group = "build"
-    onlyIf { hasOlcrtc }
-    if (hasOlcrtc) {
-        inputs.dir(olcrtcRepoDir.resolve("mobile"))
-        outputs.file(olcrtcAndroidAar)
-        workingDir = olcrtcRepoDir
-        commandLine("gomobile", "bind", "-target=android", "-androidapi", "21", "-o", olcrtcAndroidAarFile.absolutePath, "./mobile")
-    }
-}
-
-val olcrtcAndroidAarDependency = if (hasOlcrtc) files(olcrtcAndroidAarFile).builtBy(buildOlcrtcAndroidAar) else files()
-
 kotlin {
-    android {
-        namespace = "org.olcbox.app.sharedui"
-        compileSdk = 36
-        minSdk = 23
-        compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
+    // Мы оставляем только Apple-таргеты и JVM для разработки
+    jvm {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_17)
+        }
     }
-
-    jvm { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
 
     macosX64()
     macosArm64()
@@ -64,26 +30,50 @@ kotlin {
             api(libs.compose.foundation)
             api(libs.compose.resources)
             api(libs.compose.material3)
+
             implementation(libs.kermit)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.content.negotiation)
+            implementation(libs.ktor.client.serialization)
+            implementation(libs.ktor.serialization.json)
+            implementation(libs.ktor.client.logging)
+            implementation(libs.androidx.lifecycle.viewmodel)
+            implementation(libs.androidx.lifecycle.runtime)
             implementation(libs.kotlinx.serialization.json)
+            implementation(libs.multiplatformSettings)
+            implementation(libs.kstore)
+            implementation(libs.materialKolor)
+            implementation(libs.androidx.datastore.preferences)
         }
 
-        androidMain.dependencies {
-            implementation(libs.androidx.activityCompose)
+        jvmMain.dependencies {
+            implementation(compose.desktop.currentOs)
+            implementation(libs.kotlinx.coroutines.swing)
             implementation(libs.ktor.client.okhttp)
-            if (hasOlcrtc) { implementation(olcrtcAndroidAarDependency) }
+            implementation(libs.kstore.file)
         }
 
-        iosMain.dependencies { implementation(libs.ktor.client.darwin) }
-        macosMain.dependencies { implementation(libs.ktor.client.darwin) }
-    }
+        iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
+            implementation(libs.kstore.file)
+        }
 
-    targets.withType<KotlinNativeTarget>().matching { it.konanTarget.family.isAppleFamily }.configureEach {
-        binaries.framework {
-            baseName = "SharedUI"
-            isStatic = true
+        macosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
+            implementation(libs.kstore.file)
         }
     }
+
+    targets
+        .withType<KotlinNativeTarget>()
+        .matching { it.konanTarget.family.isAppleFamily }
+        .configureEach {
+            binaries {
+                framework {
+                    baseName = "SharedUI"
+                    isStatic = true
+                }
+            }
+        }
 }
