@@ -10,6 +10,9 @@ plugins {
     alias(libs.plugins.metro)
 }
 
+// Проверяем, запущено ли это на CI (Codemagic)
+val isCi = System.getenv("CI") != null
+
 // Пытаемся найти папку с Go-кодом. Сначала в переменной окружения, 
 // потом в корне проекта, потом рядом с проектом.
 val olcrtcRepoPath = providers.environmentVariable("OLCRTC_REPO").orElse(
@@ -49,11 +52,11 @@ val buildOlcrtcAndroidAar by tasks.registering(Exec::class) {
     }
 }
 
-// Делаем зависимость "безопасной"
+// Делаем зависимость "безопасной" для CI
 val olcrtcAndroidAarDependency = if (hasOlcrtc) {
     files(olcrtcAndroidAarFile).builtBy(buildOlcrtcAndroidAar)
 } else {
-    files() // Пустая зависимость, если папки нет
+    files() // Пустая зависимость, если папки нет (на CI для iOS это нормально)
 }
 
 kotlin {
@@ -120,7 +123,11 @@ kotlin {
             implementation(libs.ktor.client.okhttp)
             implementation(libs.kstore.file)
             implementation(libs.zxing.core)
-            implementation(olcrtcAndroidAarDependency)
+            
+            // Зависимость добавится только если библиотека найдена
+            if (hasOlcrtc) {
+                implementation(olcrtcAndroidAarDependency)
+            }
         }
 
         jvmMain.dependencies {
