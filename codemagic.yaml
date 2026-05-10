@@ -6,26 +6,37 @@ workflows:
     scripts:
       - name: Build Unsigned IPA
         script: |
-          # 1. Заходим в папку с проектом
-          cd iosApp
+          # 1. Ищем файл проекта .xcodeproj по всему репозиторию
+          PROJECT_PATH=$(find . -name "*.xcodeproj" -print -quit)
+          PROJECT_DIR=$(dirname "$PROJECT_PATH")
+          echo "Проект найден в: $PROJECT_PATH"
           
-          # 2. Собираем .app файл (это займет 3-5 минут)
+          cd "$PROJECT_DIR"
+
+          # 2. Собираем приложение (это ДОЛЖНО занять несколько минут)
           xcodebuild build \
             -project "iosApp.xcodeproj" \
             -scheme "iosApp" \
             -configuration Release \
             -sdk iphoneos \
-            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGN_IDENTITY=""
+
+          # 3. Ищем, где Xcode спрятал готовый .app
+          APP_DIR=$(find ~/Library/Developer/Xcode/DerivedData -name "iosApp.app" -type d | grep "Release-iphoneos" | head -n 1)
           
-          # 3. Создаем структуру IPA
+          if [ -z "$APP_DIR" ]; then
+            echo "ОШИБКА: Приложение не собралось!"
+            exit 1
+          fi
+
+          # 4. Упаковываем в нормальный IPA
           mkdir -p Payload
-          # Ищем собранное приложение и копируем его
-          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "iosApp.app" | head -n 1)
-          cp -R "$APP_PATH" Payload/
+          cp -R "$APP_DIR" Payload/
+          zip -qr olcbox_final.ipa Payload
           
-          # 4. Упаковываем
-          zip -qr ../olcbox.ipa Payload
+          # Перемещаем в корень для артефактов
+          mv olcbox_final.ipa $CM_BUILD_DIR/
     artifacts:
       - "*.ipa"
