@@ -15,29 +15,33 @@ workflows:
       - name: Build Kotlin Framework
         script: |
           set -e
+          # Устанавливаем окружение Xcode
           export CONFIGURATION=Release
           export SDK_NAME=iphoneos
           export ARCHS=arm64
           export PLATFORM_NAME=iphoneos
           export IPHONEOS_DEPLOYMENT_TARGET=16.0
           
-          # --- НОВЫЙ БЛОК ---
-          # Эмулируем пути Xcode, чтобы Compose Resources знал, куда класть файлы
+          # Эмулируем пути для Compose Resources
           export TARGET_BUILD_DIR="$(pwd)/build/xcode_products"
           export BUILT_PRODUCTS_DIR="$(pwd)/build/xcode_products"
           export CONTENTS_FOLDER_PATH="SharedUI.framework"
+          export UNLOCALIZED_RESOURCES_FOLDER_PATH="SharedUI.framework"
           export FRAMEWORKS_FOLDER_PATH="Frameworks"
           
           echo "Сборка фреймворка с полным окружением Xcode..."
-          ./gradlew :sharedUI:embedAndSignAppleFrameworkForXcode
+          # --no-daemon заставляет Gradle прочитать export выше
+          ./gradlew :sharedUI:embedAndSignAppleFrameworkForXcode --no-daemon
           
       - name: Build Xcode Project
         script: |
           set -e
+          # Поиск проекта
           PROJ_PATH=$(find . -name "iosApp.xcodeproj" -type d | head -n 1)
           PROJ_DIR=$(dirname "$PROJ_PATH")
           cd "$PROJ_DIR"
 
+          echo "Запуск xcodebuild..."
           xcodebuild build \
             -project "iosApp.xcodeproj" \
             -scheme "iosApp" \
@@ -48,8 +52,13 @@ workflows:
             CODE_SIGN_IDENTITY="" \
             -derivedDataPath ./build-data
 
+          echo "Упаковка в IPA..."
           mkdir -p Payload
           APP_PATH=$(find ./build-data -name "*.app" -type d | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Ошибка: .app файл не найден!"
+            exit 1
+          fi
           cp -R "$APP_PATH" Payload/
           zip -qr ../olcbox_ios.ipa Payload
     artifacts:
