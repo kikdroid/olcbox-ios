@@ -16,26 +16,37 @@ workflows:
       - name: Build Kotlin Framework
         script: |
           set -e
-          # 1. Готовим пути
-          mkdir -p build/xcode_products/SharedUI.framework
-          ABS_FRAMEWORK_PATH="$(pwd)/build/xcode_products/SharedUI.framework"
+          # 1. Создаем пути заранее
           ABS_BUILD_DIR="$(pwd)/build/xcode_products"
+          ABS_FRAMEWORK_PATH="$ABS_BUILD_DIR/SharedUI.framework"
+          mkdir -p "$ABS_FRAMEWORK_PATH"
           
-          echo "Сборка фреймворка с принудительной передачей параметров..."
+          echo "Сборка фреймворка с форсированными свойствами проекта..."
           
-          # Мы передаем ВСЕ параметры через -P, чтобы обмануть проверку Gradle
+          # Мы передаем свойства ТРЕМЯ способами: 
+          # 1. Как обычные -P (для Compose)
+          # 2. Как -P@env (для Kotlin Native)
+          # 3. Через экспорт (для системных вызовов)
+          
+          export ARCHS="arm64"
+          export SDK_NAME="iphoneos"
+          export CONFIGURATION="Release"
+          
           ./gradlew :sharedUI:embedAndSignAppleFrameworkForXcode \
             --no-daemon \
             -Pcompose.ios.resources.destDir="$ABS_FRAMEWORK_PATH" \
-            -Pkotlin.native.cocoapods.configuration=Release \
+            -PARCHS="$ARCHS" \
+            -PSDK_NAME="$SDK_NAME" \
+            -PCONFIGURATION="$CONFIGURATION" \
+            -P@env.ARCHS="$ARCHS" \
+            -P@env.SDK_NAME="$SDK_NAME" \
+            -P@env.CONFIGURATION="$CONFIGURATION" \
+            -P@env.TARGET_BUILD_DIR="$ABS_BUILD_DIR" \
+            -P@env.BUILT_PRODUCTS_DIR="$ABS_BUILD_DIR" \
+            -P@env.FRAMEWORKS_FOLDER_PATH="Frameworks" \
             -Pkotlin.native.cocoapods.platform=iphoneos \
             -Pkotlin.native.cocoapods.archs=arm64 \
-            -P@env.SDK_NAME=iphoneos \
-            -P@env.CONFIGURATION=Release \
-            -P@env.TARGET_BUILD_DIR="$ABS_BUILD_DIR" \
-            -P@env.ARCHS=arm64 \
-            -P@env.FRAMEWORKS_FOLDER_PATH="Frameworks" \
-            -P@env.BUILT_PRODUCTS_DIR="$ABS_BUILD_DIR"
+            -Pkotlin.native.cocoapods.configuration=Release
           
       - name: Build Xcode Project
         script: |
