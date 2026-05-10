@@ -16,37 +16,36 @@ workflows:
       - name: Build Kotlin Framework
         script: |
           set -e
-          # 1. Создаем пути заранее
+          # 1. Пути
           ABS_BUILD_DIR="$(pwd)/build/xcode_products"
           ABS_FRAMEWORK_PATH="$ABS_BUILD_DIR/SharedUI.framework"
           mkdir -p "$ABS_FRAMEWORK_PATH"
           
-          echo "Сборка фреймворка с форсированными свойствами проекта..."
-          
-          # Мы передаем свойства ТРЕМЯ способами: 
-          # 1. Как обычные -P (для Compose)
-          # 2. Как -P@env (для Kotlin Native)
-          # 3. Через экспорт (для системных вызовов)
-          
+          # 2. Переменные окружения
           export ARCHS="arm64"
           export SDK_NAME="iphoneos"
+          export PLATFORM_NAME="iphoneos"
           export CONFIGURATION="Release"
           
+          echo "Сборка фреймворка: штурм плагина Compose..."
+          
+          # Мы добавляем -PPLATFORM_NAME и -PSDK_NAME напрямую.
+          # Это должно закрыть ошибку "Could not infer iOS target platform".
           ./gradlew :sharedUI:embedAndSignAppleFrameworkForXcode \
             --no-daemon \
             -Pcompose.ios.resources.destDir="$ABS_FRAMEWORK_PATH" \
             -PARCHS="$ARCHS" \
             -PSDK_NAME="$SDK_NAME" \
+            -PPLATFORM_NAME="$PLATFORM_NAME" \
             -PCONFIGURATION="$CONFIGURATION" \
             -P@env.ARCHS="$ARCHS" \
             -P@env.SDK_NAME="$SDK_NAME" \
+            -P@env.PLATFORM_NAME="$PLATFORM_NAME" \
             -P@env.CONFIGURATION="$CONFIGURATION" \
             -P@env.TARGET_BUILD_DIR="$ABS_BUILD_DIR" \
             -P@env.BUILT_PRODUCTS_DIR="$ABS_BUILD_DIR" \
-            -P@env.FRAMEWORKS_FOLDER_PATH="Frameworks" \
             -Pkotlin.native.cocoapods.platform=iphoneos \
-            -Pkotlin.native.cocoapods.archs=arm64 \
-            -Pkotlin.native.cocoapods.configuration=Release
+            -Pkotlin.native.cocoapods.archs=arm64
           
       - name: Build Xcode Project
         script: |
