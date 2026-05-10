@@ -29,14 +29,18 @@ workflows:
           export UNLOCALIZED_RESOURCES_FOLDER_PATH="SharedUI.framework"
           export FRAMEWORKS_FOLDER_PATH="Frameworks"
           
+          # СОЗДАЕМ ДИРЕКТОРИИ ВРУЧНУЮ (Решение проблемы с parent directory)
+          echo "Подготовка структуры папок..."
+          mkdir -p "$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH"
+          
           echo "Сборка фреймворка с полным окружением Xcode..."
-          # --no-daemon заставляет Gradle прочитать export выше
+          # --no-daemon гарантирует, что Gradle подхватит текущие переменные окружения
           ./gradlew :sharedUI:embedAndSignAppleFrameworkForXcode --no-daemon
           
       - name: Build Xcode Project
         script: |
           set -e
-          # Поиск проекта
+          # Поиск проекта iosApp
           PROJ_PATH=$(find . -name "iosApp.xcodeproj" -type d | head -n 1)
           PROJ_DIR=$(dirname "$PROJ_PATH")
           cd "$PROJ_DIR"
