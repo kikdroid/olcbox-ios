@@ -1,39 +1,38 @@
 workflows:
   ios-workflow:
-    name: iOS Compose Build
+    name: iOS Compose Build (No Android)
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
       java: 17
       xcode: latest
     scripts:
-      - name: Prepare Kotlin Framework
+      - name: Clean and Prepare
+        script: |
+          chmod +x gradlew
+          ./gradlew clean
+          
+      - name: Build Kotlin Framework for iOS
         script: |
           set -e
-          chmod +x gradlew
-          echo "Сборка Kotlin Framework..."
+          echo "Собираем только iOS Framework..."
           
-          # Эмулируем окружение Xcode для универсальной задачи
+          # Указываем переменные для корректной работы embed-задачи
           export CONFIGURATION=Release
           export SDK_NAME=iphoneos
           export ARCHS=arm64
           
-          # Используем задачу, которая гарантированно существует для iOS-таргетов
-          ./gradlew :sharedUI:embedAndSignAppleFrameworkForXcode \
-            -x :sharedUI:compileAndroidMain \
-            -x :sharedUI:buildOlcrtcAndroidAar \
-            -x :androidApp:compileReleaseKotlin \
-            --stacktrace
+          ./gradlew :sharedUI:embedAndSignAppleFrameworkForXcode
           
       - name: Build Unsigned IPA
         script: |
           set -e
-          # Поиск проекта
+          # Находим проект iosApp
           PROJ_PATH=$(find . -name "iosApp.xcodeproj" -type d | head -n 1)
           PROJ_DIR=$(dirname "$PROJ_PATH")
           cd "$PROJ_DIR"
 
-          echo "Xcode Build..."
+          echo "Запуск Xcodebuild..."
           xcodebuild build \
             -project "iosApp.xcodeproj" \
             -scheme "iosApp" \
@@ -44,10 +43,16 @@ workflows:
             CODE_SIGN_IDENTITY="" \
             -derivedDataPath ./build-data
 
-          echo "Packaging IPA..."
+          # Упаковка в IPA
+          echo "Создание IPA архива..."
           mkdir -p Payload
           APP_PATH=$(find ./build-data -name "*.app" -type d | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Ошибка: .app файл не найден!"
+            exit 1
+          fi
           cp -R "$APP_PATH" Payload/
-          zip -qr ../olcbox_client.ipa Payload
+          zip -qr ../olcbox_client_ios.ipa Payload
+          echo "Готово!"
     artifacts:
       - "*.ipa"
