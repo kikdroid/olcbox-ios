@@ -4,22 +4,34 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
-      # Обязательно для Kotlin Multiplatform
       java: 17
       xcode: latest
     scripts:
+      - name: Prepare Kotlin Framework
+        script: |
+          set -e
+          chmod +x gradlew
+          echo "Собираем общую логику на Kotlin..."
+          # Эта команда подготовит фреймворки, которые ждет Xcode
+          ./gradlew :sharedUI:assembleReleaseAppleFrameworkForXcode || ./gradlew assembleRelease
+          
       - name: Build Unsigned IPA
         script: |
-          # Останавливаем скрипт сразу, если хоть одна команда выдаст ошибку
-          set -e 
+          set -e
           
-          echo "Даем права на запуск Gradle..."
-          chmod +x ./gradlew
+          # Ищем, где именно лежит .xcodeproj (на всякий случай)
+          PROJ_PATH=$(find . -name "iosApp.xcodeproj" -type d | head -n 1)
+          PROJ_DIR=$(dirname "$PROJ_PATH")
+          echo "Проект найден в папке: $PROJ_DIR"
           
-          echo "Переходим в папку iOS проекта..."
-          cd iosApp
+          cd "$PROJ_DIR"
           
-          echo "Начинаем сборку через xcodebuild..."
+          # Проверяем, не пустой ли файл проекта
+          if [ ! -f "iosApp.xcodeproj/project.pbxproj" ]; then
+            echo "КРИТИЧЕСКАЯ ОШИБКА: Файл project.pbxproj не найден!"
+            exit 1
+          fi
+
           xcodebuild build \
             -project "iosApp.xcodeproj" \
             -scheme "iosApp" \
@@ -30,11 +42,9 @@ workflows:
             CODE_SIGN_IDENTITY="" \
             -derivedDataPath ./build-data
 
-          echo "Упаковываем приложение..."
+          # Упаковка
           mkdir -p Payload
           cp -R ./build-data/Build/Products/Release-iphoneos/iosApp.app Payload/
           zip -qr ../olcbox_client.ipa Payload
-          
-          echo "Готово!"
     artifacts:
       - "*.ipa"
