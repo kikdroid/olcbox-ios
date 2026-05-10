@@ -1,18 +1,25 @@
 workflows:
   ios-workflow:
-    name: iOS Build
+    name: iOS Compose Build
     max_build_duration: 60
     instance_type: mac_mini_m2
+    environment:
+      # Обязательно для Kotlin Multiplatform
+      java: 17
+      xcode: latest
     scripts:
       - name: Build Unsigned IPA
         script: |
-          # 1. Переходим в папку, где лежит проект
+          # Останавливаем скрипт сразу, если хоть одна команда выдаст ошибку
+          set -e 
+          
+          echo "Даем права на запуск Gradle..."
+          chmod +x ./gradlew
+          
+          echo "Переходим в папку iOS проекта..."
           cd iosApp
           
-          # 2. Проверяем, на месте ли файл (если нет — билд упадет здесь)
-          ls -la iosApp.xcodeproj
-
-          # 3. Запускаем сборку (должна идти 3-7 минут)
+          echo "Начинаем сборку через xcodebuild..."
           xcodebuild build \
             -project "iosApp.xcodeproj" \
             -scheme "iosApp" \
@@ -23,12 +30,11 @@ workflows:
             CODE_SIGN_IDENTITY="" \
             -derivedDataPath ./build-data
 
-          # 4. Собираем структуру IPA
+          echo "Упаковываем приложение..."
           mkdir -p Payload
-          # Копируем скомпилированное приложение
           cp -R ./build-data/Build/Products/Release-iphoneos/iosApp.app Payload/
-          
-          # 5. Упаковываем
           zip -qr ../olcbox_client.ipa Payload
+          
+          echo "Готово!"
     artifacts:
       - "*.ipa"
