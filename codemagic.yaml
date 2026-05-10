@@ -1,38 +1,40 @@
 workflows:
   ios-workflow:
-    name: iOS Compose Build (No Android)
+    name: iOS Pure Build
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
       java: 17
       xcode: latest
     scripts:
-      - name: Clean and Prepare
+      - name: Clean Project
         script: |
           chmod +x gradlew
           ./gradlew clean
           
-      - name: Build Kotlin Framework for iOS
+      - name: Build Kotlin Framework
         script: |
           set -e
-          echo "Собираем только iOS Framework..."
-          
-          # Указываем переменные для корректной работы embed-задачи
+          # Эти переменные критически важны для задачи syncComposeResourcesForIos
           export CONFIGURATION=Release
           export SDK_NAME=iphoneos
           export ARCHS=arm64
+          export PLATFORM_NAME=iphoneos
+          export IPHONEOS_DEPLOYMENT_TARGET=16.0
           
-          ./gradlew :sharedUI:embedAndSignAppleFrameworkForXcode
+          echo "Сборка фреймворка с параметрами Xcode..."
+          ./gradlew :sharedUI:embedAndSignAppleFrameworkForXcode \
+            -Pkotlin.native.cocoapods.configuration=$CONFIGURATION \
+            -Pkotlin.native.cocoapods.platform=$PLATFORM_NAME \
+            -Pkotlin.native.cocoapods.archs=$ARCHS
           
-      - name: Build Unsigned IPA
+      - name: Build Xcode Project
         script: |
           set -e
-          # Находим проект iosApp
           PROJ_PATH=$(find . -name "iosApp.xcodeproj" -type d | head -n 1)
           PROJ_DIR=$(dirname "$PROJ_PATH")
           cd "$PROJ_DIR"
 
-          echo "Запуск Xcodebuild..."
           xcodebuild build \
             -project "iosApp.xcodeproj" \
             -scheme "iosApp" \
@@ -43,16 +45,9 @@ workflows:
             CODE_SIGN_IDENTITY="" \
             -derivedDataPath ./build-data
 
-          # Упаковка в IPA
-          echo "Создание IPA архива..."
           mkdir -p Payload
           APP_PATH=$(find ./build-data -name "*.app" -type d | head -n 1)
-          if [ -z "$APP_PATH" ]; then
-            echo "Ошибка: .app файл не найден!"
-            exit 1
-          fi
           cp -R "$APP_PATH" Payload/
-          zip -qr ../olcbox_client_ios.ipa Payload
-          echo "Готово!"
+          zip -qr ../olcbox_ios.ipa Payload
     artifacts:
       - "*.ipa"
