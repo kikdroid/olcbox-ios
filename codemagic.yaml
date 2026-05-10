@@ -10,45 +10,45 @@ workflows:
       - name: Clean Project
         script: |
           chmod +x gradlew
-          # Полная очистка, включая удаление папки build вручную
+          # Полная очистка перед стартом
           rm -rf build
           ./gradlew clean
           
       - name: Build Kotlin Framework
         script: |
           set -e
-          # Окружение Xcode
+          # 1. Переменные окружения для имитации Xcode
           export CONFIGURATION=Release
           export SDK_NAME=iphoneos
           export ARCHS=arm64
           export PLATFORM_NAME=iphoneos
-          export IPHONEOS_DEPLOYMENT_TARGET=16.0
           
-          # Определяем пути
-          export XCODE_OUT="$(pwd)/build/xcode_products"
+          # 2. Создаем абсолютные пути
+          mkdir -p build/xcode_products/SharedUI.framework
+          ABS_FRAMEWORK_PATH="$(pwd)/build/xcode_products/SharedUI.framework"
+          ABS_BUILD_DIR="$(pwd)/build/xcode_products"
+          
+          # 3. Экспортируем их (для Gradle задач)
+          export BUILT_PRODUCTS_DIR="$ABS_BUILD_DIR"
+          export TARGET_BUILD_DIR="$ABS_BUILD_DIR"
           export CONTENTS_FOLDER_PATH="SharedUI.framework"
+          export UNLOCALIZED_RESOURCES_FOLDER_PATH="SharedUI.framework"
           
-          # Принудительно создаем дерево папок и даем права
-          echo "Принудительная подготовка директорий..."
-          mkdir -p "$XCODE_OUT/$CONTENTS_FOLDER_PATH"
-          chmod -R 777 "$(pwd)/build"
-
-          # Экспортируем переменные для Gradle
-          export TARGET_BUILD_DIR="$XCODE_OUT"
-          export BUILT_PRODUCTS_DIR="$XCODE_OUT"
-          export UNLOCALIZED_RESOURCES_FOLDER_PATH="$CONTENTS_FOLDER_PATH"
-          export FRAMEWORKS_FOLDER_PATH="Frameworks"
+          echo "Сборка фреймворка с принудительным указанием путей..."
           
-          echo "Запуск сборки фреймворка..."
-          # Добавляем прямой параметр для плагина Compose через -P
+          # Используем -Pcompose.ios.resources.destDir — это "убивает" проблему создания parent directory,
+          # так как мы явно говорим плагину, куда писать.
           ./gradlew :sharedUI:embedAndSignAppleFrameworkForXcode \
             --no-daemon \
-            -Pcompose.ios.resources.destDir="$XCODE_OUT/$CONTENTS_FOLDER_PATH"
+            -Pcompose.ios.resources.destDir="$ABS_FRAMEWORK_PATH" \
+            -Pkotlin.native.cocoapods.configuration=Release \
+            -Pkotlin.native.cocoapods.platform=iphoneos \
+            -Pkotlin.native.cocoapods.archs=arm64
           
       - name: Build Xcode Project
         script: |
           set -e
-          # Находим проект
+          # Находим путь к iosApp.xcodeproj
           PROJ_PATH=$(find . -name "iosApp.xcodeproj" -type d | head -n 1)
           PROJ_DIR=$(dirname "$PROJ_PATH")
           cd "$PROJ_DIR"
@@ -68,7 +68,7 @@ workflows:
           mkdir -p Payload
           APP_PATH=$(find ./build-data -name "*.app" -type d | head -n 1)
           if [ -z "$APP_PATH" ]; then
-            echo "Ошибка: .app файл не найден!"
+            echo "ОШИБКА: .app файл не найден в build-data!"
             exit 1
           fi
           cp -R "$APP_PATH" Payload/
